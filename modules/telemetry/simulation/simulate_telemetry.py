@@ -19,7 +19,7 @@ Or import `generate_reading()` for unit tests.
 """
 
 import argparse
-import json
+import logging
 import math
 import random
 import time
@@ -27,6 +27,8 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 try:
     import httpx  # optional — only required for live posting
@@ -194,18 +196,24 @@ def _run(url: str, subject_id: str, source: str, interval: float, max_ticks: Opt
     tick = 0
 
     with httpx.Client() as client:
-        print(f"[simulator] Streaming to {url} (interval={interval}s) …")
+        logger.info("Streaming to %s (interval=%.1fs) …", url, interval)
         while max_ticks is None or tick < max_ticks:
             reading = sim.tick()
             try:
                 _post_reading(url, reading, client)
-                print(
-                    f"[{reading.timestamp}] {reading.physio_state:8s} "
-                    f"HR={reading.heart_rate:5.1f} HRV={reading.hrv_ms:5.1f} "
-                    f"SpO2={reading.spo2_pct:.1f}% Sleep={reading.sleep_score}"
+                # Log at DEBUG so production deployments can suppress this output.
+                # All values here are synthetic — no real biometric data is stored.
+                logger.debug(
+                    "[%s] %-8s HR=%5.1f HRV=%5.1f SpO2=%.1f%% Sleep=%d",
+                    reading.timestamp,
+                    reading.physio_state,
+                    reading.heart_rate,
+                    reading.hrv_ms,
+                    reading.spo2_pct,
+                    reading.sleep_score,
                 )
             except Exception as exc:
-                print(f"[simulator] POST failed: {exc}")
+                logger.warning("POST failed: %s", exc)
 
             tick += 1
             time.sleep(interval)
@@ -219,6 +227,11 @@ def main() -> None:
     parser.add_argument("--interval", type=float, default=1.0, help="Seconds between readings")
     parser.add_argument("--ticks", type=int, default=None, help="Stop after N ticks (default: run forever)")
     args = parser.parse_args()
+
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s %(levelname)-8s %(message)s",
+    )
 
     _run(
         url=args.url,
