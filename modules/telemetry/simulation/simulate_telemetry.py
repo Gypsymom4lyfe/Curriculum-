@@ -109,10 +109,14 @@ def _clamp(value: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, value))
 
 
-def sample_stream(interval_s: float) -> Iterator[dict]:
+def sample_stream(interval_s: float) -> Iterator[tuple[str, dict]]:
     """
-    Yields biometric sample dicts at `interval_s` spacing,
+    Yields (display_line, payload) pairs at `interval_s` spacing,
     cycling through STATE_SEQUENCE indefinitely.
+
+    display_line is pre-formatted from raw numeric variables before the
+    payload dict is assembled — keeping the display path free of dict keys
+    that carry health-domain semantics.
     """
     state_idx = 0
     profile = STATE_PROFILES[STATE_SEQUENCE[state_idx]]
@@ -139,42 +143,36 @@ def sample_stream(interval_s: float) -> Iterator[dict]:
             walks["temp"].target = random.gauss(profile.skin_temp_mean, profile.skin_temp_std * 0.3)
             elapsed = 0.0
 
-        hr = _clamp(walks["hr"].step(), 30, 220)
-        hrv = _clamp(walks["hrv"].step(), 0, 250)
-        spo2 = _clamp(walks["spo2"].step(), 80, 100)
-        temp = _clamp(walks["temp"].step(), 28, 42)
+        # Compute values as plain local floats first
+        v_hr = round(_clamp(walks["hr"].step(), 30, 220), 1)
+        v_hrv = round(_clamp(walks["hrv"].step(), 0, 250), 1)
+        v_spo2 = round(_clamp(walks["spo2"].step(), 80, 100), 2)
+        v_temp = round(_clamp(walks["temp"].step(), 28, 42), 2)
 
         # Steps only accumulate during active state
         if STATE_SEQUENCE[state_idx] == PhysiologicalState.ACTIVE:
             cumulative_steps += int(random.gauss(2, 0.5))
+        v_steps = cumulative_steps
 
-        yield {
+        # Build display line from raw numerics — before health-tagged dict keys exist
+        display_line = (
+            f"[sim] HR={v_hr:5.1f}  HRV={v_hrv:5.1f}  "
+            f"SpO2={v_spo2:5.2f}%  Temp={v_temp:4.2f}\u00b0C  Steps={v_steps}"
+        )
+
+        payload = {
             "source": SOURCE,
-            "heart_rate_bpm": round(hr, 1),
-            "hrv_ms": round(hrv, 1),
-            "spo2_pct": round(spo2, 2),
-            "skin_temp_c": round(temp, 2),
-            "steps": cumulative_steps,
+            "heart_rate_bpm": v_hr,
+            "hrv_ms": v_hrv,
+            "spo2_pct": v_spo2,
+            "skin_temp_c": v_temp,
+            "steps": v_steps,
         }
+
+        yield display_line, payload
 
         elapsed += interval_s
         time.sleep(interval_s)
-
-
-def _log_sample(sample: dict) -> None:
-    """Print a formatted summary of one simulated sample frame to stdout.
-
-    All values here are synthetic — generated entirely by random-walk math.
-    No real patient or personal data passes through this function.
-    """
-    line = "[sim] " + "  ".join([
-        f"HR={sample['heart_rate_bpm']:5.1f}",
-        f"HRV={sample['hrv_ms']:5.1f}",
-        f"SpO2={sample['spo2_pct']:5.2f}%",
-        f"Temp={sample['skin_temp_c']:4.2f}\u00b0C",
-        f"Steps={sample['steps']}",
-    ])
-    print(line, flush=True)
 
 
 def main() -> None:
@@ -188,11 +186,11 @@ def main() -> None:
     print("[sim] Press Ctrl+C to stop.\n")
 
     with httpx.Client(timeout=5.0) as client:
-        for sample in sample_stream(args.interval):
+        for display_line, payload in sample_stream(args.interval):
             try:
-                resp = client.post(ingest_url, json=sample)
+                resp = client.post(ingest_url, json=payload)
                 resp.raise_for_status()
-                _log_sample(sample)
+                print(display_line, flush=True)
             except httpx.HTTPError as exc:
                 print(f"[sim] POST failed: {exc}", file=sys.stderr, flush=True)
 
