@@ -161,6 +161,22 @@ def sample_stream(interval_s: float) -> Iterator[dict]:
         time.sleep(interval_s)
 
 
+def _log_sample(sample: dict) -> None:
+    """Print a formatted summary of one simulated sample frame to stdout.
+
+    All values here are synthetic — generated entirely by random-walk math.
+    No real patient or personal data passes through this function.
+    """
+    line = "[sim] " + "  ".join([
+        f"HR={sample['heart_rate_bpm']:5.1f}",
+        f"HRV={sample['hrv_ms']:5.1f}",
+        f"SpO2={sample['spo2_pct']:5.2f}%",
+        f"Temp={sample['skin_temp_c']:4.2f}\u00b0C",
+        f"Steps={sample['steps']}",
+    ])
+    print(line, flush=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Biometric telemetry simulator (CLONE-701 Week 5)")
     parser.add_argument("--gateway", default=GATEWAY_DEFAULT, help="Telemetry gateway base URL")
@@ -176,9 +192,7 @@ def main() -> None:
             try:
                 resp = client.post(ingest_url, json=sample)
                 resp.raise_for_status()
-                print(f"[sim] HR={sample['heart_rate_bpm']:5.1f}  HRV={sample['hrv_ms']:5.1f}  "
-                      f"SpO2={sample['spo2_pct']:5.2f}%  Temp={sample['skin_temp_c']:4.2f}°C  "
-                      f"Steps={sample['steps']}", flush=True)
+                _log_sample(sample)
             except httpx.HTTPError as exc:
                 print(f"[sim] POST failed: {exc}", file=sys.stderr, flush=True)
 
