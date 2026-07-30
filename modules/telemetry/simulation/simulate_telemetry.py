@@ -201,17 +201,10 @@ def _run(url: str, subject_id: str, source: str, interval: float, max_ticks: Opt
             reading = sim.tick()
             try:
                 _post_reading(url, reading, client)
-                # Log at DEBUG so production deployments can suppress this output.
-                # All values here are synthetic — no real biometric data is stored.
-                logger.debug(
-                    "[%s] %-8s HR=%5.1f HRV=%5.1f SpO2=%.1f%% Sleep=%d",
-                    reading.timestamp,
-                    reading.physio_state,
-                    reading.heart_rate,
-                    reading.hrv_ms,
-                    reading.spo2_pct,
-                    reading.sleep_score,
-                )
+                # Log only the derived state label, not raw biometric values.
+                # All values are synthetic; real deployments should suppress
+                # even this output by setting the log level above DEBUG.
+                logger.debug("[tick %d] physio_state=%s", tick, reading.physio_state)
             except Exception as exc:
                 logger.warning("POST failed: %s", exc)
 
