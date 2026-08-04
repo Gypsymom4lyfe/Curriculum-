@@ -43,6 +43,7 @@ The WayMaker Curriculum is an integrated, multi-disciplinary educational framewo
 ## Additional Modules
 
 - [Course Module Outline: Applied Autonomous Agentics & Cognitive Ethics](./Course-Module-Outline-Applied-Autonomous-Agentics-and-Cognitive-Ethics.md)
+- [Course Module Outline (v2): Applied Autonomous Agentics & Cognitive Ethics](./Course-Module-Outline-Applied-Autonomous-Agentics-and-Cognitive-Ethics-v2.md)
 
 ## Key Student Outcomes
 
